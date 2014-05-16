@@ -1,0 +1,9 @@
+0.1
+
+This is Xrawler version 0.1, a package for crawling the arXiv preprint repository.
+
+At the moment it only contains a naive weighted keywords feature for extracting relevant papers from arXiv's daily RSS feeds --- saving you the time it takes to look through each paper, and the number of RSS bookmarks on your browser.
+
+Later versions are likely to include:
+*More sophisticated (machine learning) methods to classify your search topics
+*Tests against snarxiv (random arxiv paper generator) for crackpottery.
