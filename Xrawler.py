@@ -9,6 +9,7 @@ import nltk
 import numpy as np
 import fnmatch
 import pickle
+import time
 
 from lxml.html import parse
 from urllib2 import urlopen
@@ -40,6 +41,7 @@ def getSnarxiv():
    #Since snarxiv generates randomly each time one visits it, we do mc on this routine
 
    url = "http://snarxiv.org"
+   time.sleep(np.random.randint(1,10))
    try:
     llog = feedparser.parse(url)
     return llog
@@ -176,6 +178,7 @@ def cleanTagData(papers,kword,force_get=0):
        fromFile=1
 
      if fromFile==0:
+      time.sleep(np.random.randint(1,10))
       try:
 	parsed = parse(urlopen(url))
       except:
