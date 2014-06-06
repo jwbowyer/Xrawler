@@ -43,8 +43,8 @@ def getSnarxiv():
    url = "http://snarxiv.org"
    time.sleep(np.random.randint(1,10))
    try:
-    llog = feedparser.parse(url)
-    return llog
+    parsed = parse(urlopen(url))
+    return parsed
    except:
     print "Could not grab from snarXiv! Please check your mirror.\n"
     return
@@ -68,30 +68,72 @@ def TrainSnarxiv(mc=100):
 
    return 0
 
+def randomArxiv():
+
+	start_year=8
+	end_year=14
+	year = np.random.random_integers(start_year,end_year)	#new naming scheme started in '07, but I need to adapt for the old scheme
+	month = np.random.random_integers(1,12)
+
+	if year<10:
+	 year="0"+str(year)
+	if month<10:
+	 month="0"+str(month)
+
+	value=np.random.random_integers(0,9999)
+	if value<10:
+	 value="000"+str(value)
+	elif value<100:
+	 value="00"+str(value)
+	elif value<1000:
+	 value="0"+str(value)	
+
+	paper=str(year)+str(month)+"."+str(value)
+        return paper
+
 
 def getTrainingData(keyword):
 
-	classics=[]
-	intros=[]
+	classics=[]		#from lst of top-cited
+	intros=[]		#use keywords introduction, primer, notes, etc in arxiv search
 	other=[]		#use a random collection of non-<keyword> papers for this
 	keyword=keyword.lower()
 
+	#for intros, we just do an arXiv search for "introduction","primer","lecture notes" + keyword. Check these for good text!
 	if (keyword=="cmb") or (keyword=="cosmic microwaved background"):
-		classics=["astro-ph/9603033"]
-		#See the wiki: en.wikipedia.org/wiki/Cosmic_microwave_background_radiation
+		intros=["0903.5158","astro-ph/9706147","astro-ph/9511130","1005.0555","0802.3688","astro-ph/0601307","astro-ph/0409131"]
+		classics=["astro-ph/9603033","astro-ph/0302209","1303.5062","astro-ph/0007333","astro-ph/0104489"]
+		#inspirehep.net/info/hep/stats/topcites/2000/eprints/by_astro-ph_annual.html
 	if keyword=="b-modes":
 		intros=["astro-ph/9904102","astro-ph/9706147","astro-ph/9810506"]
 		classics=["astro-ph/9801285","astro-ph/0106174","astro-ph/0106536","astro-ph/9609170","astro-ph/9609169"]
 	if (keyword=="quantum gravity"):
 		intros=["1402.3586","1108.3269","0711.2445","gr-qc/0508120","gr-qc/0410054",
 			"gr-qc/0108040","gr-qc/0004005","hep-th/9404019"]
+		classics=["hep-th/9711200","hep-th/9908142"]
 
-	if (keyword=="quantum gravity"):
-		[other,a]=getTrainingData("b-modes")
-		del a
+	#I could select random arXiv papers for "other", that do not contain the keyword (this is not rigorous, but it's a start)
+	while len(other) < len(classics+intros):
+		rnd=randomArxiv()
+		url="http://arxiv.org/abs/"+rnd
+		time.sleep(np.random.randint(1,10))
+		try:
+		 parsed=parse(urlopen(url))
+		except:
+		 continue
+
+	        doc = parsed.getroot()	#need to clean out {\textit } etc
+	        tables = doc.findall('.//blockquote')
+		abstr= " ".join((tables[0].text_content()).split()[1:])	#and the title
+
+		if keyword in abstr.split():
+		 continue
+		else:
+		 other.append(rnd)
+
 	#specials:1206.1192
 
-	return [classics+intros,other]	#need a better set for "other"
+	return [classics+intros,other]
 
 def naiveSelect(TextList,weights,wtThresh=1e-10):
 
@@ -225,9 +267,10 @@ def getTrainingSet(keyword,force_get=0):
     
     return tset
 
-def FindArXivRSS( keywords=["dark energy","unification","quantum gravity","CMB"], keyweights=[2,3,1,1],method=1,force_get=0):
+def FindArXivRSS( keywords=["dark energy","unification","quantum gravity","CMB"], keyweights=[2,3,1,1],method=1,force_get=0,threshold=0.3,date=""):
 
  #Need to adjust for similar words, i.e., "gravity" also uses "gravitational"
+ #stackoverflow.com/questions/6984264/word-net-word-synonyms-related-word-constructs-java-or-python
  wtThresh=1e-6
  finalList = []
  tclassified = []
@@ -301,16 +344,20 @@ def FindArXivRSS( keywords=["dark energy","unification","quantum gravity","CMB"]
  versionList=["0.91","1.0","2.0"]
 
  import time
- date = (time.strftime("%d%m%Y"))
- date = "08052014"	#remove
+ if date=="":
+  date = (time.strftime("%d%m%Y"))
+ #date = "08052014"	#remove
  choiceIdx=0
 
  tset = []
  tclass = []
  aclass = []
 
- i=8
- SL={SL.keys()[i]:SL.values()[i]}	#remove
+ #i=8
+ #SL={SL.keys()[i]:SL.values()[i]}	#remove
+
+ #Example key words/phrases that pick out what interests me.
+ keyweights = [ 1.0/float(i) for i in keyweights ]
 
  for choice in SL.keys():
 
@@ -382,12 +429,21 @@ def FindArXivRSS( keywords=["dark energy","unification","quantum gravity","CMB"]
    #titleFilt = " ".join([ word.lower() for word in titleShorts[0].split() if len(word)>2 ])
    #print "Filtered for short words\n"
 
-   #Example key words/phrases that pick out what interests me.
-   keyweights = [ 1.0/float(i) for i in keyweights ]
-
    #So now that I have all the data, I need to define precisely what I want to achieve.
    #At the first level, I scan the titles for the keywords. I assign a number for each title describing how many instances of the words I've
    #found.
+
+   idlen=len(idShorts)
+   if(idlen):
+    for j in range(len(finalList)):
+     for i in range(idlen):
+      if idShorts[i]==finalList[j][0]:
+	idShorts.pop(i)
+	titleShorts.pop(i)
+	abstractShorts.pop(i)
+	idlen-=1
+	j-=1
+	break
 
    if method==0:
     finalList.extend(naiveWeighted(keywords,keyweights,titleShorts,abstractShorts,idShorts,wtThresh,subset=2))
@@ -471,7 +527,7 @@ def FindArXivRSS( keywords=["dark energy","unification","quantum gravity","CMB"]
   #choiceIdx+=1
 
  if len(finalList)>1:
-   plist = sorted([ [finalList[i][0],finalList[i][1]] for i in range(0,len(finalList)) ],key=getKey,reverse=True)
+   plist = sorted([ [finalList[i][0],finalList[i][1]] for i in range(0,len(finalList)) if finalList[i][1]>threshold],key=getKey,reverse=True)
 
  if not(finalList):
   print "\nEmpty list of recommendations"
